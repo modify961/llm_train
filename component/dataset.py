@@ -4,6 +4,7 @@ loguru 是一个用于 Python 的日志记录库,通过pip install loguru 安装
 from loguru import logger
 from torch.utils.data import Dataset
 from component import json_csv_help
+import json
 
 
 """
@@ -35,5 +36,48 @@ class UnifiedTurnTrainDataSet(Dataset):
         
     def __len__(cli):
         return len(cli.data_list)
+    
+    def __getitem__(cli, index):
+        # 每条数据拼接格式为: {system_format}{user_format}{assistant_format}{user_format}{assistant_format}...
+        data = cli.data_list[index]
+        data = json.loads(data)
+        input_ids, target_mask = [], []
+
+        # 设置系统信息
+        if cli.system_format is not None:
+            system = data['system'].strip() if 'system' in data.keys() else cli.system
+            # system信息不为空
+            if system is not None:
+                system_text = cli.system_format.format(content=system)
+                input_ids = cli.tokenizer.encode(system_text, add_special_tokens=False)
+                target_mask = [0] * len(input_ids)
+
+        conversations = data['conversation']
+        # 拼接多轮对话
+        for i, conv in enumerate(conversations):
+            human = conv['human'].strip()
+            assistant = conv['assistant'].strip()
+
+            human = cli.user_format.format(content=human, stop_token=cli.tokenizer.eos_token)
+            assistant = cli.assistant_format.format(content=assistant, stop_token=cli.tokenizer.eos_token)
+
+            input_tokens = cli.tokenizer.encode(human, add_special_tokens=False)
+            output_tokens = cli.tokenizer.encode(assistant, add_special_tokens=False)
+
+            input_ids += input_tokens + output_tokens
+            target_mask += [0] * len(input_tokens) + [1] * len(output_tokens)
+
+        assert len(input_ids) == len(target_mask)
+        # 对长度进行截断
+        input_ids = input_ids[:cli.max_seq_length]
+        target_mask = target_mask[:cli.max_seq_length]
+        attention_mask = [1] * len(input_ids)
+        assert len(input_ids) == len(target_mask) == len(attention_mask)
+        inputs = {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'target_mask': target_mask
+        }
+        return inputs
     
     

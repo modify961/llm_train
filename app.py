@@ -101,9 +101,10 @@ def main():
     # 1、加载配置和环境检测
     args, training_args = init_config(config_name)
     # 2、加载load_tokenizer
-    # tokenizer=load_tokenizer(args)
+    tokenizer=load_tokenizer(args)
     # 2、加载训练数据
-    train_dataset = load_dataset(args, None,training_args)
+    train_dataset = load_dataset(args, tokenizer,training_args)
+    print(train_dataset[0])
 
 
 # 主函数入口
