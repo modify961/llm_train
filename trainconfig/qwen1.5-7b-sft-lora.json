@@ -1,6 +1,6 @@
 {
     "output_dir": "output/qwen1.5-7b-sft-lora",
-    "model_name_or_path": "modes/Qwen/Qwen1.5-7B-Chat",
+    "model_name_or_path": "modles/Qwen/Qwen1.5-7B-Chat",
     "train_file": "data/csv/codeqen.csv",
     "template_name": "qwen",
     "train_mode": "lora",
