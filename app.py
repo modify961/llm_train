@@ -13,7 +13,9 @@ from component.dataset import UnifiedTurnTrainDataSet
 from transformers import (
     set_seed,
     HfArgumentParser,
-    TrainingArguments
+    TrainingArguments,
+    AutoConfig,
+    AutoTokenizer
 )
 """
 读取训练的配置参数
@@ -49,21 +51,48 @@ def init_config(config_name):
     assert sum([training_args.fp16, training_args.bf16]) == 1, "only one of fp16 and bf16 can be True"
 
     return args, training_args
+"""
+加载tokenizer
+"""
+def load_tokenizer(args):
+    config = AutoConfig.from_pretrained(args.model_name_or_path, trust_remote_code=True)
+    # 加载tokenzier
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.model_name_or_path,
+        trust_remote_code=True,
+        # llama不支持fast
+        use_fast=False if config.model_type == 'llama' or config.model_type == 'internlm2' else True
+    )
+
+    if tokenizer.__class__.__name__ == 'QWenTokenizer':
+        tokenizer.pad_token_id = tokenizer.eod_id
+        tokenizer.bos_token_id = tokenizer.eod_id
+        tokenizer.eos_token_id = tokenizer.eod_id
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    assert tokenizer.pad_token_id is not None, "pad_token_id should not be None"
+    assert tokenizer.eos_token_id is not None, "eos_token_id should not be None"
+    logger.info(f'vocab_size of tokenizer: {tokenizer.vocab_size}')
+
+    return tokenizer
 
 
-def loadfile():
+def load_dataset(args, tokenizer,training_args):
     """
     raise 关键字用于引发异常。当你使用 raise 语句时，你可以指定要引发的异常类型和可选的错误消息。
     这允许你在程序执行过程中遇到错误或不符合预期的情况时，主动触发异常，从而中断当前的程序执行流程，并将控制权传递给异常处理程序。
     """
     if template_map is None or len(template_map) == 0:
         raise Exception("模板列表为空=")
-    templat_name="qwen"
+    templat_name=args.template_name
     if templat_name not in template_map.keys():
         raise Exception(f"模板名:{templat_name},不在模板列表中，全部的模板名称为{template_map.keys()}")
     template=template_map[templat_name]
-    print(template)
-    # UnifiedTurnTrainDataSet()
+    logger.info("对话模板:{}".format(template))
+    train_dataset = UnifiedTurnTrainDataSet(args.train_file_path,args.train_file_name,tokenizer,args.max_seq_length, template)
+    return train_dataset
+
 
 # 主函数
 def main():
@@ -71,8 +100,11 @@ def main():
     config_name="trainconfig/qwen1.5-7b-sft-lora.json"
     # 1、加载配置和环境检测
     args, training_args = init_config(config_name)
+    # 2、加载load_tokenizer
+    # tokenizer=load_tokenizer(args)
     # 2、加载训练数据
-    # loadfile()
+    train_dataset = load_dataset(args, None,training_args)
+
 
 # 主函数入口
 # Python 文件直接被运行时（而不是作为模块被导入时），执行下面缩进的代码块。

@@ -7,7 +7,8 @@ from typing import Optional
 @dataclass
 class CustomizedArguments:
     max_seq_length: int = field(metadata={"help": "输入最大长度"})
-    train_file: str = field(metadata={"help": "训练集。如果task_type=pretrain，请指定文件夹，将扫描其下面的所有jsonl文件"})
+    train_file_path: str = field(metadata={"help": "训练集存储的文件路径。如果task_type=pretrain，请将扫描其下面的所有csv文件"})
+    train_file_name: str = field(metadata={"help": "训练集存储的文件名，csv格式。如果task_type=pretrain，该参数无需指定"})
     model_name_or_path: str = field(metadata={"help": "预训练权重路径"})
     template_name: str = field(default="", metadata={"help": "sft时的数据格式"})
     eval_file: Optional[str] = field(default="", metadata={"help": "验证集"})
