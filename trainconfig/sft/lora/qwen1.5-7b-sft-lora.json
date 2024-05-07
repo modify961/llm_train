@@ -18,7 +18,6 @@
     "lora_rank": 64,
     "lora_alpha": 16,
     "lora_dropout": 0.05,
-
     "gradient_checkpointing": true,
     "disable_tqdm": false,
     "optim": "paged_adamw_32bit",
