@@ -80,6 +80,8 @@ def from_csv_to_jsonl(train_file_path,train_file_name):
                     human="异常鉴别："+human
                 if types == "know":
                     human="要素识别："+human
+                if types == "KeywordRecognition":
+                    human="关键词识别："+human
                 conversation_id += 1  # conversation_id自增
                 data = {
                     "conversation_id": conversation_id,
