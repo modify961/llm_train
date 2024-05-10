@@ -2,6 +2,7 @@
     "output_dir": "output/qloraqwen15",
     "model_name_or_path": "/root/autodl-tmp/fineturn/qwen/Qwen/CodeQwenChat",
     "train_file": "data",
+    "train_file_path":"data",
     "train_file_name": "aspcoder_train.csv",
     "template_name": "qwen",
     "num_train_epochs": 1,

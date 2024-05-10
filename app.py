@@ -23,7 +23,8 @@ from transformers import (
     AutoConfig,
     AutoTokenizer,
     AutoModelForCausalLM,
-    Trainer
+    Trainer,
+    BitsAndBytesConfig
 )
 
 """
