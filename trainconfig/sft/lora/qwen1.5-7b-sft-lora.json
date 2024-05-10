@@ -1,6 +1,6 @@
 {
-    "output_dir": "output/qwen1.5-7b-sft-lora",
-    "model_name_or_path": "modles/Qwen",
+    "output_dir": "output/qwen15",
+    "model_name_or_path": "/root/autodl-tmp/fineturn/qwen/Qwen/CodeQwenChat",
     "train_file_path":"data",
     "train_file_name": "aspcoder_train.csv",
     "template_name": "qwen",
