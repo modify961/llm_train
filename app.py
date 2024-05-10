@@ -13,6 +13,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 from component.argument import CustomizedArguments
 from component.template import template_map
 from component.dataset import UnifiedTurnTrainDataSet
+from component.collator import SFTDataCollator
 from trl import DPOTrainer, get_kbit_device_map
 import torch.nn as nn
 from transformers import (
@@ -241,40 +242,41 @@ def load_dataset(args, tokenizer,training_args):
 # 主函数
 def main():
     # 文件路径，注意：windows和linux下路径格式都为trainconfig/qwen1.5-7b-sft-lora.json
-    config_name="trainconfig/sft/lora/qwen1.5-7b-sft-lora.json"
+    config_name="trainconfig/sft/qlora/qwen-7b-sft-qlora.json"
     # 1、加载配置和环境检测
     args, training_args = init_config(config_name)
     # 2、加载load_tokenizer
     tokenizer=load_tokenizer(args)
     # 3、加载训练数据，和collator，默认设置为None
     train_dataset = load_dataset(args, tokenizer,training_args)
-    # data_collator = None
-    # # 4、加载模型,是否使用unsloth框架
-    # if args.use_unsloth:
-    #     components = load_unsloth_model(args, training_args)
-    # else:
-    #     components = load_model(args, training_args)
-    # model = components['model']
+    
+    data_collator = SFTDataCollator(tokenizer, args.max_seq_length)
+    # 4、加载模型,是否使用unsloth框架
+    if args.use_unsloth:
+        components = load_unsloth_model(args, training_args)
+    else:
+        components = load_model(args, training_args)
+    model = components['model']
     # ref_model = components['ref_model']
     # peft_config = components['peft_config']
-    # # 5、 初始化训练器
-    # trainer = Trainer(
-    #     model=model,
-    #     args=training_args,
-    #     train_dataset=train_dataset,
-    #     tokenizer=tokenizer,
-    #     data_collator=data_collator,
-    # )
-    # # 6、开始训练
-    # train_result=trainer.train()
-    # # 保存checkout 及tokenizer
-    # final_save_path = join(training_args.output_dir)
-    # trainer.save_model(final_save_path)
-    # # 7、 保存训练指标
-    # metrics = train_result.metrics
-    # trainer.log_metrics("train", metrics)
-    # trainer.save_metrics("train", metrics)
-    # trainer.save_state()
+    # 5、 初始化训练器
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+    )
+    # 6、开始训练
+    train_result=trainer.train()
+    # 保存checkout 及tokenizer
+    final_save_path = join(training_args.output_dir)
+    trainer.save_model(final_save_path)
+    # 7、 保存训练指标
+    metrics = train_result.metrics
+    trainer.log_metrics("train", metrics)
+    trainer.save_metrics("train", metrics)
+    trainer.save_state()
 
 
 # 主函数入口
