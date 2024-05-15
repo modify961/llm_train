@@ -24,7 +24,8 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
     Trainer,
-    BitsAndBytesConfig
+    BitsAndBytesConfig,
+    AddedToken
 )
 
 """
@@ -77,7 +78,7 @@ def load_unsloth_model(args, training_args):
 加载模型
 """
 def load_model(args, training_args):
-    assert training_args.bf16 or training_args.fp16, 'bf16 or fp16 should be True'
+    assert training_args.bf16 or training_args.fp16, 'bf16 或 fp16 需要设置为true'
     logger.info(f'加载基础模型: {args.model_name_or_path}')
     logger.info(f'训练方式 {args.train_mode}')
 
@@ -210,6 +211,19 @@ def load_tokenizer(args):
         use_fast=False if config.model_type == 'llama' or config.model_type == 'internlm2' else True
     )
 
+    # 部分模型的base与chat版本的tokenizer存在差异
+    if 'internlm2' in args.model_name_or_path.lower():
+        tokenizer._added_tokens_encoder.update({'<|im_start|>': 92543})
+        tokenizer._added_tokens_encoder.update({'<|im_end|>': 92542})
+        tokenizer._added_tokens_decoder.update({92543: AddedToken('<|im_start|>')})
+        tokenizer._added_tokens_decoder.update({92542: AddedToken('<|im_end|>')})
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<|im_start|>', '<|im_end|>']})
+    elif 'orion' in args.model_name_or_path.lower():
+        tokenizer.add_special_tokens({'bos_token': '<s>', 'eos_token': '</s>'})
+    elif 'gemma' in args.model_name_or_path.lower():
+        tokenizer.add_special_tokens({'additional_special_tokens': ['<start_of_turn>', '<end_of_turn>']})
+
+
     if tokenizer.__class__.__name__ == 'QWenTokenizer':
         tokenizer.pad_token_id = tokenizer.eod_id
         tokenizer.bos_token_id = tokenizer.eod_id
@@ -224,7 +238,7 @@ def load_tokenizer(args):
     return tokenizer
 
 
-def load_dataset(args, tokenizer,training_args):
+def load_sft_dataset(args, tokenizer,training_args):
     """
     raise 关键字用于引发异常。当你使用 raise 语句时，你可以指定要引发的异常类型和可选的错误消息。
     这允许你在程序执行过程中遇到错误或不符合预期的情况时，主动触发异常，从而中断当前的程序执行流程，并将控制权传递给异常处理程序。
@@ -248,26 +262,50 @@ def main():
     args, training_args = init_config(config_name)
     # 2、加载load_tokenizer
     tokenizer=load_tokenizer(args)
-    # 3、加载训练数据，和collator，默认设置为None
-    train_dataset = load_dataset(args, tokenizer,training_args)
-    
-    data_collator = SFTDataCollator(tokenizer, args.max_seq_length)
+    # 3、加载训练数据,task_type 默认为sft
+    if args.task_type == 'sft':
+        logger.info('以软参数共享（SFT）的方式对大模型进行微调')
+        train_dataset = load_sft_dataset(args, tokenizer,training_args)
+        data_collator = SFTDataCollator(tokenizer, args.max_seq_length)
+    # elif args.task_type == 'pretrain':
+    #     logger.info('Train model with pretrain task')
+    #     train_dataset = load_pretrain_dataset(training_args, args, tokenizer)
+    #     data_collator = PretrainCollator(tokenizer, args.max_seq_length)
+    # else:
+    #     logger.info('Train model with dpo task')
+    #     train_dataset = load_dpo_dataset(args, tokenizer)
+    #     data_collator = None
+
     # 4、加载模型,是否使用unsloth框架
     if args.use_unsloth:
         components = load_unsloth_model(args, training_args)
     else:
         components = load_model(args, training_args)
     model = components['model']
-    # ref_model = components['ref_model']
-    # peft_config = components['peft_config']
+    ref_model = components['ref_model']
+    peft_config = components['peft_config']
     # 5、 初始化训练器
-    trainer = Trainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-    )
+    if args.task_type == 'dpo':
+        trainer = DPOTrainer(
+            model,
+            ref_model,
+            args=training_args,
+            beta=args.beta,
+            train_dataset=train_dataset,
+            data_collator=data_collator,
+            tokenizer=tokenizer,
+            peft_config=peft_config
+        )
+    else:
+        # pretrain or sft
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            tokenizer=tokenizer,
+            data_collator=data_collator,
+        )
+    
     # 6、开始训练
     train_result=trainer.train()
     # 保存checkout 及tokenizer
